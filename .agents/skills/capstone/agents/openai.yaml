@@ -1,0 +1,6 @@
+interface:
+  display_name: "Capstone"
+  short_description: "Repo-specific patterns and workflows for capstone"
+  default_prompt: "Use the capstone repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
