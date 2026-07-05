@@ -1,6 +1,6 @@
 import express from 'express';
-import { createProxyMiddleware } from 'http-proxy-middleware';
 import morgan from 'morgan';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const app = express();
 
@@ -44,11 +44,11 @@ function getAgentProxy(sandboxId) {
 app.use((req, res, next) => {
     const host = req.headers.host;
     const sandboxId = host.split('.')[0];
-
+    
     if(host.split(".")[1] === "agent"){
-        return getAgentProxy(sandboxId)(req, res, next);
-    } else if(host.split(".")[1] === "preview"){
-        return getProxy(sandboxId)(req, res, next);
+            return getAgentProxy(sandboxId)(req, res, next);
+        } else if(host.split(".")[1] === "preview"){
+            return getProxy(sandboxId)(req, res, next);
     }
 });
 

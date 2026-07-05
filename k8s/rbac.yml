@@ -9,7 +9,7 @@ kind: Role
 metadata:
   name:  resource-manager
 rules:
-- apiGroups:  ["*"]
+- apiGroups:  [""]
   resources:  ["pods","services"]
   verbs:  ["get","list", "watch", "create", "delete"]
 

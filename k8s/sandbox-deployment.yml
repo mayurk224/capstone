@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name:  sandbox-deployment
   labels:
-    app:  sandbox-deployment
+    name:  sandbox-deployment
 spec:
   replicas: 1
   selector:

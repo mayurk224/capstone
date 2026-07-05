@@ -10,7 +10,7 @@ spec:
     - http:
         paths:
           - pathType: Prefix
-            path: "/api/sandbox/"
+            path: "/api/sandbox"
             backend:
               service:
                 name: sandbox-service

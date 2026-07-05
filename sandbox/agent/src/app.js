@@ -7,26 +7,14 @@ const WORKING_DIR = '/workspace';
 
 const app = express();
 
+app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
 
 app.get('/', (req, res) => {
     res.status(200).json({ message: 'Hello from Agent!', status: 'success' });
 });
 
-
-/**
- * @route GET /list-files
- * @description Lists all files in the working directory and its subdirectories. Returns a JSON object with the file paths relative to the working directory. exclude directories like node_modules, .git,dist, etc.
- * - eg. {
- *     "files": [
- *         "file1.txt",
- *         "src/file2.txt",
- *         "src/subdir/file3.txt"
- *     ]
- * }
- */
 app.get("/list-files", async (req, res) => {
     const listFiles = async (dir, baseDir) => {
         const entries = await fs.promises.readdir(dir, { withFileTypes: true });
@@ -61,39 +49,23 @@ app.get("/list-files", async (req, res) => {
     }
 });
 
-/**
- * @route GET /read-file
- * @description Reads the content of the specified files from the working directory. Returns a JSON object with the file paths relative to the working directory and their content.
- * - eg. {
- *     "file1.txt": "Hello, World!",
- *     "src/file2.txt": "Hello, Node.js!"
- * }
- */
 app.get("/read-files", async (req, res) => {
     const files = req.query.files;
 
-    if (!files || typeof files !== "string") {
+    if (!files) {
         return res.status(400).json({
-            message: 'Invalid request. Expected a "files" query parameter.',
+            message: 'No files specified.',
             status: "error"
         });
     }
 
     const fileList = files
-        .split(",")
-        .map(file => file.trim())
-        .filter(Boolean);
+        .split(",");
 
     const results = await Promise.all(
         fileList.map(async (file) => {
+            const filePath = path.join(WORKING_DIR, file);
             try {
-                const filePath = path.resolve(WORKING_DIR, file);
-
-                // Prevent path traversal
-                const resolvedWorkingDir = path.resolve(WORKING_DIR);
-                if (!filePath.startsWith(resolvedWorkingDir + path.sep)) {
-                    throw new Error("Invalid file path");
-                }
 
                 const content = await fs.promises.readFile(
                     filePath,
@@ -101,14 +73,13 @@ app.get("/read-files", async (req, res) => {
                 );
 
                 return {
-                    [file]: content
-                };
+                    [filePath.replace(WORKING_DIR, '')]: content,
+                }
             } catch (error) {
                 return {
-                    [file]: {
-                        error: error.message
-                    }
-                };
+                    [filePath.replace(WORKING_DIR, '')]: `Error reading file: ${error.message}`,
+                }
+
             }
         })
     );
@@ -116,26 +87,10 @@ app.get("/read-files", async (req, res) => {
     res.status(200).json({
         message: "Files read successfully",
         status: "success",
-        files: Object.assign({}, ...results)
+        files: results
     });
 });
 
-/**
- * @route PATCH /update-files
- * @description Updates the content of the specified files in the working directory.
- * - eg. {
- *     "updates": [
- *         {
- *             "file": "file1.txt",
- *             "content": "Hello, Node.js!"
- *         },
- *         {
- *             "file": "src/file2.txt",
- *             "content": "Hello, World!"
- *         }
- *     ]
- * }
- */
 app.patch("/update-files", async (req, res) => {
     const updates = req.body.updates;
 
@@ -150,29 +105,20 @@ app.patch("/update-files", async (req, res) => {
         updates.map(async (update) => {
             const { file, content } = update;
 
+            const filePath = path.join(WORKING_DIR, file);
             try {
-                const filePath = path.resolve(WORKING_DIR, file);
-
-                // Prevent path traversal
-                const resolvedWorkingDir = path.resolve(WORKING_DIR);
-                if (!filePath.startsWith(resolvedWorkingDir + path.sep)) {
-                    throw new Error("Invalid file path");
-                }
-
-                // Ensure file exists before updating and avoid TOCTOU race condition
-                const fileHandle = await fs.promises.open(filePath, 'r+');
-                await fileHandle.writeFile(content ?? "", "utf8");
-                await fileHandle.close();
-
+                console.log(path.dirname(filePath), filePath);
+                //                 // Ensure file exists before updating and avoid TOCTOU race condition
+                await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+                await fs.promises.writeFile(filePath, content, 'utf-8');
                 return {
-                    [file]: "file updated successfully"
-                };
+                    [filePath]: 'File updated successfully',
+                }
             } catch (error) {
                 return {
-                    [file]: {
-                        error: error.message
-                    }
-                };
+                    [filePath]: `Error updating file: ${error.message}`,
+                }
+
             }
         })
     );
@@ -184,22 +130,6 @@ app.patch("/update-files", async (req, res) => {
     });
 });
 
-/**
- * @route POST /create-file
- * @description Creates the specified files in the working directory.
- * - eg. {
- *     "files": [
- *         {
- *             "file": "file1.txt",
- *             "content": "Hello, Node.js!"
- *         },
- *         {
- *             "file": "src/file2.txt",
- *             "content": "Hello, World!"
- *         }
- *     ]
- * }
- */
 app.post("/create-files", async (req, res) => {
     const files = req.body.files;
 
@@ -214,44 +144,30 @@ app.post("/create-files", async (req, res) => {
         files.map(async (fileObj) => {
             const { file, content } = fileObj;
 
-            const filePath = path.resolve(WORKING_DIR, file);
-            const directoryPath = path.dirname(filePath);
+            const filePath = path.join(WORKING_DIR, file);
 
             try {
-                // Prevent path traversal
-                const resolvedWorkingDir = path.resolve(WORKING_DIR);
-                if (!filePath.startsWith(resolvedWorkingDir + path.sep)) {
-                    throw new Error("Invalid file path");
-                }
 
-                // Create all missing parent directories
-                await fs.promises.mkdir(directoryPath, {
-                    recursive: true
-                });
+                //                 // Create all missing parent directories
+                await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
 
-                await fs.promises.writeFile(
-                    filePath,
-                    content || "",
-                    "utf8"
-                );
+                await fs.promises.writeFile(filePath, content, 'utf-8');
 
                 return {
-                    [file]: "file created successfully"
-                };
+                    [filePath]: 'File created successfully',
+                }
             } catch (error) {
                 return {
-                    [file]: {
-                        error: error.message
-                    }
-                };
+                    [filePath]: `Error creating file: ${error.message}`,
+                }
+
             }
         })
     );
 
     res.status(200).json({
-        message: "Files created successfully",
-        status: "success",
-        results
+        message: 'File creation results',
+        results,
     });
 });
 
