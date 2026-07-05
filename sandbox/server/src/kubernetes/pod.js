@@ -1,5 +1,7 @@
 import { k8sCoreV1Api } from "./config.js";
 
+const TEMPLATE_IMAGE = process.env.SANDBOX_TEMPLATE_IMAGE || "template";
+const AGENT_IMAGE = process.env.SANDBOX_AGENT_IMAGE || "agent";
 
 export async function createPod(sandboxId) {
 
@@ -20,7 +22,7 @@ export async function createPod(sandboxId) {
             ],
             initContainers: [{
                 name: 'init-container',
-                image: 'template',
+                image: TEMPLATE_IMAGE,
                 imagePullPolicy: "IfNotPresent",
                 command: ['sh', '-c', 'cp -r /workspace/. /seed/'],
                 volumeMounts: [
@@ -33,10 +35,16 @@ export async function createPod(sandboxId) {
             ],
             containers: [
                 {
-                    image: "template",
+                    image: TEMPLATE_IMAGE,
                     imagePullPolicy: "IfNotPresent",
                     name: 'sandbox-container',
                     ports: [{ containerPort: 5173, name: "http" }],
+                    env: [
+                        {
+                            name: 'VITE_HMR_CLIENT_PORT',
+                            value: '80'
+                        }
+                    ],
                     resources: {
                         limits: { cpu: "500m", memory: "1Gi" },
                         requests: { cpu: "250m", memory: "500Mi" }
@@ -49,7 +57,7 @@ export async function createPod(sandboxId) {
                     ],
                 },
                 {
-                    image: "agent",
+                    image: AGENT_IMAGE,
                     imagePullPolicy: "IfNotPresent",
                     name: 'agent-container',
                     ports: [{ containerPort: 3000, name: "http" }],
